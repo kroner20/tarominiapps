@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Расклад Таро</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+:root{--bg1:#2a1747;--bg2:#0d0818;--ink:#f1e6cf;--gold:#e0b45a;--muted:#b8a6c9;--slot:rgba(255,255,255,.06);box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+*{box-sizing:border-box}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;min-height:100vh;color:var(--ink);font-family:Georgia,"Times New Roman",serif;overflow-x:hidden;
+  background:radial-gradient(ellipse at 50% 20%,var(--bg1),var(--bg2) 75%) fixed;background-color:var(--bg2)}
+main{max-width:640px;margin:0 auto;padding:22px 12px 40px;text-align:center}
+h1{font-size:1.5rem;font-weight:400;letter-spacing:.12em;margin:6px 0 4px;color:var(--gold)}
+.sub{margin:0 0 18px;color:var(--muted);font-size:.95rem;min-height:1.4em;transition:opacity .4s}
+.slots{display:flex;justify-content:center;gap:clamp(8px,3vw,20px)}
+.slotw{display:flex;flex-direction:column;align-items:center;width:var(--sw)}
+:root{--sw:clamp(84px,25vw,132px);--cw:clamp(56px,15vw,92px)}
+.pos{font-size:.8rem;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-bottom:8px}
+.slot{width:var(--sw);aspect-ratio:3/5;border:1.5px dashed var(--gold);border-radius:10px;background:var(--slot);position:relative;opacity:.8}
+.slot.filled{border:none;background:none;opacity:1}
+.slot.glow{animation:glow 1.2s ease-out}
+@keyframes glow{0%{filter:drop-shadow(0 0 0 var(--gold))}30%{filter:drop-shadow(0 0 18px var(--gold))}100%{filter:drop-shadow(0 0 0 var(--gold))}}
+.name{min-height:2.6em;margin-top:10px;font-size:.95rem;line-height:1.25;opacity:0;transform:translateY(6px);transition:all .6s}
+.name.on{opacity:1;transform:none}
+.name small{display:block;color:var(--muted);font-size:.78rem;margin-top:2px}
+.hand{position:relative;display:flex;justify-content:center;align-items:flex-end;height:calc(var(--cw)*2.2);margin:26px 0 8px;transition:opacity .7s,transform .7s}
+.hand.out{opacity:0;transform:translateY(40px);pointer-events:none}
+.card{--w:var(--cw);--r:0deg;--y:0px;width:var(--cw);aspect-ratio:3/5;border-radius:8px;border:0;padding:0;cursor:pointer;flex:none;
+  margin-left:calc(var(--cw)*-.42);transform:translateY(var(--y)) rotate(var(--r));transition:transform .25s,filter .25s;
+  animation:deal .7s cubic-bezier(.2,.8,.3,1) backwards;animation-delay:calc(var(--i)*70ms);background:none;font:inherit}
+.card:first-child{margin-left:0}
+.card:hover,.card:focus-visible{transform:translateY(calc(var(--y) - 18px)) rotate(var(--r));filter:drop-shadow(0 6px 10px rgba(224,180,90,.55));outline:none;z-index:5}
+.card.gone{visibility:hidden}
+@keyframes deal{from{opacity:0;transform:translate(calc((3.5 - var(--i))*var(--cw)*.5),-130px) rotate(0) scale(.7)}}
+.back,.face{position:absolute;inset:0;border-radius:inherit;overflow:hidden;box-shadow:0 4px 10px rgba(0,0,0,.35)}
+.back{border:2px solid var(--gold);background:radial-gradient(circle at 50% 50%,#e0b45a 0 7%,transparent 8%),repeating-conic-gradient(from 0deg at 50% 50%,#3b1f6b 0 15deg,#2a1450 15deg 30deg);}
+.back::after{content:"";position:absolute;inset:7%;border:1px solid #e0b45a;border-radius:5px;opacity:.8}
+.face{background:#1a0d33}
+.face img{width:100%;height:100%;display:block;object-fit:cover}
+.face.rev img{transform:rotate(180deg)}
+.flyer{position:fixed;z-index:50;perspective:900px;pointer-events:none}
+.fl{position:absolute;inset:0;transform-style:preserve-3d}
+.fl .back,.fl .face{backface-visibility:hidden}
+.fl .face{transform:rotateY(180deg)}
+.slot .face{position:absolute}
+.actions{margin-top:22px;min-height:46px}
+button.btn{font:inherit;color:var(--ink);background:transparent;border:1.5px solid var(--gold);border-radius:999px;padding:10px 24px;cursor:pointer;letter-spacing:.06em;transition:background .25s,color .25s}
+button.btn:hover{background:var(--gold);color:var(--bg2)}
+.hidden{display:none}
+@media (prefers-reduced-motion:reduce){.card{animation:none}.slot.glow{animation:none}}
+</style>
+</head>
+<body>
+<main>
+  <h1>РАСКЛАД ТАРО</h1>
+  <p class="sub" id="sub">Сосредоточься на вопросе и выбери три карты</p>
+  <div class="slots" id="slots"></div>
+  <div class="hand" id="hand"></div>
+  <div class="actions"><button class="btn hidden" id="again">Новый расклад</button></div>
+</main>
+<script>
+(function(){
+  var MAJOR=["Шут","Маг","Верховная Жрица","Императрица","Император","Иерофант","Влюблённые","Колесница","Сила","Отшельник","Колесо Фортуны","Справедливость","Повешенный","Смерть","Умеренность","Дьявол","Башня","Звезда","Луна","Солнце","Суд","Мир"];
+  var ROMAN=["0","I","II","III","IV","V","VI","VII","VIII","IX","X","XI","XII","XIII","XIV","XV","XVI","XVII","XVIII","XIX","XX","XXI"];
+  var RANKS=["Туз","Двойка","Тройка","Четвёрка","Пятёрка","Шестёрка","Семёрка","Восьмёрка","Девятка","Десятка","Паж","Рыцарь","Королева","Король"];
+  var RSHORT=["A","2","3","4","5","6","7","8","9","10","П","Р","Кл","Кр"];
+  var SUITS=[["Жезлов","✦"],["Кубков","❦"],["Мечей","✠"],["Пентаклей","✪"]];
+  var DECK=[];
+  MAJOR.forEach(function(n,i){DECK.push({name:n,i:DECK.length});});
+  SUITS.forEach(function(s){RANKS.forEach(function(r,i){DECK.push({name:r+" "+s[0],i:DECK.length});});});
+  var Q=new URLSearchParams(location.search);
+  var PRESET=(Q.get("c")||"").split(",").filter(Boolean).map(function(x){return {i:parseInt(x,10),rev:/r$/.test(x)};});
+  var POS=(Q.get("p")||"").split(",").filter(Boolean);
+  if(!PRESET.length){POS=["Прошлое","Настоящее","Будущее"];}
+  else{while(POS.length<PRESET.length)POS.push("Карта "+(POS.length+1));POS=POS.slice(0,PRESET.length);}
+  var N=POS.length;
+  var TG=window.Telegram&&window.Telegram.WebApp;
+  if(TG){TG.ready();TG.expand();}
+  function buzz(t){try{TG&&TG.HapticFeedback&&TG.HapticFeedback.impactOccurred(t);}catch(e){}}
+  var slotsEl=document.getElementById("slots"),hand=document.getElementById("hand"),sub=document.getElementById("sub"),again=document.getElementById("again");
+  var picked=0,busy=false,drawn=[];
+
+  function pad(n){return (n<10?"0":"")+n;}
+  function faceHTML(c,rev){return '<div class="face"><img alt="'+c.name+'" src="cards/'+pad(c.i)+(rev?"r":"")+'.jpg"></div>';}
+
+  function build(){
+    picked=0;busy=false;drawn=[];
+    sub.textContent="Сосредоточься на вопросе и выбери карты: "+N;
+    again.classList.add("hidden");
+    slotsEl.innerHTML="";
+    slotsEl.style.flexWrap="wrap";slotsEl.style.rowGap="14px";
+    if(N>3)slotsEl.style.setProperty("--sw","clamp(56px,16vw,96px)");
+    POS.forEach(function(p){
+      var w=document.createElement("div");w.className="slotw";
+      w.innerHTML='<div class="pos">'+p+'</div><div class="slot"></div><div class="name"></div>';
+      slotsEl.appendChild(w);
+    });
+    hand.className="hand";hand.innerHTML="";
+    var cnt=Math.max(8,N+3);
+    for(var i=0;i<cnt;i++){
+      var b=document.createElement("button");b.className="card";b.type="button";b.setAttribute("aria-label","Карта "+(i+1));
+      var t=i-(cnt-1)/2;
+      b.style.setProperty("--i",i);b.style.setProperty("--r",(t*4.5)+"deg");b.style.setProperty("--y",(t*t*2.2)+"px");
+      b.dataset.rot=t*4.5;
+      b.innerHTML='<div class="back"></div>';
+      b.addEventListener("click",function(e){pick(e.currentTarget);});
+      hand.appendChild(b);
+    }
+  }
+
+  function draw(){
+    if(PRESET.length){var p=PRESET[picked];return {card:DECK[p.i],rev:p.rev};}
+    var c;
+    do{c=DECK[Math.floor(Math.random()*DECK.length)];}while(drawn.indexOf(c)>-1);
+    drawn.push(c);
+    return {card:c,rev:Math.random()<0.3};
+  }
+
+  function pick(el){
+    if(busy||picked>=N||el.classList.contains("gone"))return;
+    busy=true;
+    var idx=picked,wrap=slotsEl.children[idx],slot=wrap.querySelector(".slot"),nm=wrap.querySelector(".name");
+    var d=draw(),w=el.offsetWidth,h=el.offsetHeight;
+    var r=el.getBoundingClientRect(),sr=slot.getBoundingClientRect();
+    var cx=r.left+r.width/2,cy=r.top+r.height/2,tx=sr.left+sr.width/2,ty=sr.top+sr.height/2;
+    var scale=sr.width/w,rot=parseFloat(el.dataset.rot)||0;
+    var fly=document.createElement("div");fly.className="flyer";
+    fly.style.cssText="left:"+(cx-w/2)+"px;top:"+(cy-h/2)+"px;width:"+w+"px;height:"+h+"px;--w:"+w+"px";
+    fly.innerHTML='<div class="fl"><div class="back"></div>'+faceHTML(d.card,d.rev)+'</div>';
+    document.body.appendChild(fly);
+    el.classList.add("gone");
+    var dx=tx-cx,dy=ty-cy;
+    var move=fly.animate([
+      {transform:"translate(0,0) rotate("+rot+"deg) scale(1)"},
+      {transform:"translate(0,-46px) rotate(0deg) scale(1.18)",offset:.3},
+      {transform:"translate("+dx+"px,"+dy+"px) rotate(0deg) scale("+scale+")"}
+    ],{duration:850,easing:"cubic-bezier(.45,.05,.25,1)",fill:"forwards"});
+    move.onfinish=function(){
+      var flip=fly.firstChild.animate([
+        {transform:"rotateY(0deg)"},{transform:"rotateY(180deg)"}
+      ],{duration:900,easing:"cubic-bezier(.3,.1,.3,1)",fill:"forwards"});
+      flip.onfinish=function(){
+        buzz("medium");
+        slot.classList.add("filled","glow");
+        slot.innerHTML=faceHTML(d.card,d.rev);
+        slot.firstChild.style.setProperty("--w",sr.width+"px");
+        slot.style.setProperty("--w",sr.width+"px");
+        fly.remove();
+        nm.innerHTML=d.card.name+(d.rev?'<small>перевёрнутая</small>':'');
+        nm.classList.add("on");
+        picked++;busy=false;
+        if(picked<N){sub.textContent="Осталось выбрать: "+(N-picked);}
+        else{
+          sub.textContent="Карты открыты";
+          setTimeout(function(){hand.classList.add("out");},300);
+          setTimeout(function(){again.classList.remove("hidden");},900);
+        }
+      };
+    };
+  }
+  if(PRESET.length){again.textContent="Закрыть";again.addEventListener("click",function(){if(TG)TG.close();else build();});}
+  else again.addEventListener("click",build);
+  build();
+})();
+</script>
+</body>
+</html>
