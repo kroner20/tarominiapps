@@ -160,7 +160,7 @@ button.btn:hover{background:var(--gold);color:var(--bg2)}
       };
     };
   }
-  if(PRESET.length){again.textContent="Закрыть";again.addEventListener("click",function(){if(TG)TG.close();else build();});}
+  if(PRESET.length){again.textContent="Узнать, что значат карты";again.addEventListener("click",function(){if(TG){try{TG.sendData("opened");}catch(e){TG.close();}}else build();});}
   else again.addEventListener("click",build);
   build();
 })();
