@@ -14,6 +14,20 @@ body{margin:0;min-height:100vh;color:var(--ink);font-family:Georgia,"Times New R
 main{max-width:640px;margin:0 auto;padding:22px 12px 40px;text-align:center}
 h1{font-size:1.5rem;font-weight:400;letter-spacing:.12em;margin:6px 0 4px;color:var(--gold)}
 .sub{margin:0 0 18px;color:var(--muted);font-size:.95rem;min-height:1.4em;transition:opacity .4s}
+.spreads{display:flex;flex-wrap:wrap;justify-content:center;gap:8px;margin:0 0 20px}
+.spreads button{font:inherit;font-size:.85rem;color:var(--muted);background:transparent;border:1px solid var(--muted);border-radius:999px;padding:6px 14px;cursor:pointer;transition:all .25s}
+.spreads button.on{color:var(--bg2);background:var(--gold);border-color:var(--gold)}
+.slots.cross{display:grid;grid-template-columns:repeat(3,var(--sw)) calc(var(--sw)*.5) var(--sw);column-gap:calc(var(--sw)*.35);row-gap:calc(var(--sw)*.12);justify-content:center;align-items:start}
+.slots.cross .slotw{justify-self:center}
+.slots.cross .crossing{position:relative;z-index:2}
+.slots.cross .crossing .slot{transform:rotate(90deg)}
+.slot[data-n]::before{content:attr(data-n);position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:1.1rem}
+.slot.filled::before{display:none}
+.legend{max-width:380px;margin:20px auto 0;text-align:left;font-size:.9rem;line-height:1.35}
+.legend div{margin:4px 0;color:var(--muted)}
+.legend b{color:var(--gold);font-weight:400}
+.legend .name{display:inline;min-height:0;margin:0;transform:none;color:var(--ink);transition:opacity .6s}
+.legend .name small{display:inline;margin-left:4px}
 .slots{display:flex;justify-content:center;gap:clamp(8px,3vw,20px)}
 .slotw{display:flex;flex-direction:column;align-items:center;width:var(--sw)}
 :root{--sw:clamp(84px,25vw,132px);--cw:clamp(56px,15vw,92px)}
@@ -56,7 +70,9 @@ button.btn:hover{background:var(--gold);color:var(--bg2)}
 <main>
   <h1>РАСКЛАД ТАРО</h1>
   <p class="sub" id="sub">Сосредоточься на вопросе и выбери три карты</p>
+  <div class="spreads hidden" id="spreads"></div>
   <div class="slots" id="slots"></div>
+  <div class="legend" id="legend"></div>
   <div class="hand" id="hand"></div>
   <div class="actions"><button class="btn hidden" id="again">Новый расклад</button></div>
 </main>
@@ -73,13 +89,21 @@ button.btn:hover{background:var(--gold);color:var(--bg2)}
   var Q=new URLSearchParams(location.search);
   var PRESET=(Q.get("c")||"").split(",").filter(Boolean).map(function(x){return {i:parseInt(x,10),rev:/r$/.test(x)};});
   var POS=(Q.get("p")||"").split(",").filter(Boolean);
-  if(!PRESET.length){POS=["Прошлое","Настоящее","Будущее"];}
+  var SPREADS={
+    three:["Три карты",["Прошлое","Настоящее","Будущее"]],
+    yesno:["Да или нет",["Ответ"]],
+    day:["Карта дня",["Карта дня"]],
+    love:["Отношения",["Ты","Партнёр","Что между вами","Что мешает","Куда всё идёт"]],
+    celtic:["Кельтский крест",["Суть ситуации","Что мешает или помогает","Основа","Недавнее прошлое","Что над тобой","Ближайшее будущее","Ты сам в этой ситуации","Окружение и влияния","Надежды и страхи","Итог"]]
+  };
+  var CUR="three";
+  if(!PRESET.length){POS=SPREADS[CUR][1].slice();}
   else{while(POS.length<PRESET.length)POS.push("Карта "+(POS.length+1));POS=POS.slice(0,PRESET.length);}
   var N=POS.length;
   var TG=window.Telegram&&window.Telegram.WebApp;
   if(TG){TG.ready();TG.expand();}
   function buzz(t){try{TG&&TG.HapticFeedback&&TG.HapticFeedback.impactOccurred(t);}catch(e){}}
-  var slotsEl=document.getElementById("slots"),hand=document.getElementById("hand"),sub=document.getElementById("sub"),again=document.getElementById("again");
+  var legend=document.getElementById("legend"),slotsEl=document.getElementById("slots"),hand=document.getElementById("hand"),sub=document.getElementById("sub"),again=document.getElementById("again");
   var picked=0,busy=false,drawn=[];
 
   function pad(n){return (n<10?"0":"")+n;}
@@ -89,12 +113,25 @@ button.btn:hover{background:var(--gold);color:var(--bg2)}
     picked=0;busy=false;drawn=[];
     sub.textContent="Сосредоточься на вопросе и выбери карты: "+N;
     again.classList.add("hidden");
-    slotsEl.innerHTML="";
-    slotsEl.style.flexWrap="wrap";slotsEl.style.rowGap="14px";
-    if(N>3)slotsEl.style.setProperty("--sw","clamp(56px,16vw,96px)");
-    POS.forEach(function(p){
+    slotsEl.innerHTML="";legend.innerHTML="";
+    var cross=(N===10);
+    slotsEl.className="slots"+(cross?" cross":"");
+    slotsEl.style.removeProperty("--sw");
+    if(cross){slotsEl.style.setProperty("--sw","clamp(50px,14vw,84px)");}
+    else{slotsEl.style.flexWrap="wrap";slotsEl.style.rowGap="14px";if(N>3)slotsEl.style.setProperty("--sw","clamp(56px,16vw,96px)");}
+    var AREA=["2 / 2","2 / 2","3 / 2","2 / 1","1 / 2","2 / 3","4 / 5","3 / 5","2 / 5","1 / 5"];
+    POS.forEach(function(p,k){
       var w=document.createElement("div");w.className="slotw";
-      w.innerHTML='<div class="pos">'+p+'</div><div class="slot"></div><div class="name"></div>';
+      if(cross){
+        w.innerHTML='<div class="slot" data-n="'+(k+1)+'"></div>';
+        w.style.gridArea=AREA[k];
+        if(k===1)w.classList.add("crossing");
+        var row=document.createElement("div");row.innerHTML="<b>"+(k+1)+".</b> "+p+': <span class="name"></span>';
+        legend.appendChild(row);w._nm=row.querySelector(".name");
+      }else{
+        w.innerHTML='<div class="pos">'+p+'</div><div class="slot"></div><div class="name"></div>';
+        w._nm=w.querySelector(".name");
+      }
       slotsEl.appendChild(w);
     });
     hand.className="hand";hand.innerHTML="";
@@ -121,11 +158,11 @@ button.btn:hover{background:var(--gold);color:var(--bg2)}
   function pick(el){
     if(busy||picked>=N||el.classList.contains("gone"))return;
     busy=true;
-    var idx=picked,wrap=slotsEl.children[idx],slot=wrap.querySelector(".slot"),nm=wrap.querySelector(".name");
+    var idx=picked,wrap=slotsEl.children[idx],slot=wrap.querySelector(".slot"),nm=wrap._nm;
     var d=draw(),w=el.offsetWidth,h=el.offsetHeight;
     var r=el.getBoundingClientRect(),sr=slot.getBoundingClientRect();
     var cx=r.left+r.width/2,cy=r.top+r.height/2,tx=sr.left+sr.width/2,ty=sr.top+sr.height/2;
-    var scale=sr.width/w,rot=parseFloat(el.dataset.rot)||0;
+    var scale=slot.offsetWidth/w,rot=parseFloat(el.dataset.rot)||0,srot=wrap.classList.contains("crossing")?90:0;
     var fly=document.createElement("div");fly.className="flyer";
     fly.style.cssText="left:"+(cx-w/2)+"px;top:"+(cy-h/2)+"px;width:"+w+"px;height:"+h+"px;--w:"+w+"px";
     fly.innerHTML='<div class="fl"><div class="back"></div>'+faceHTML(d.card,d.rev)+'</div>';
@@ -135,7 +172,7 @@ button.btn:hover{background:var(--gold);color:var(--bg2)}
     var move=fly.animate([
       {transform:"translate(0,0) rotate("+rot+"deg) scale(1)"},
       {transform:"translate(0,-46px) rotate(0deg) scale(1.18)",offset:.3},
-      {transform:"translate("+dx+"px,"+dy+"px) rotate(0deg) scale("+scale+")"}
+      {transform:"translate("+dx+"px,"+dy+"px) rotate("+srot+"deg) scale("+scale+")"}
     ],{duration:850,easing:"cubic-bezier(.45,.05,.25,1)",fill:"forwards"});
     move.onfinish=function(){
       var flip=fly.firstChild.animate([
@@ -145,8 +182,8 @@ button.btn:hover{background:var(--gold);color:var(--bg2)}
         buzz("medium");
         slot.classList.add("filled","glow");
         slot.innerHTML=faceHTML(d.card,d.rev);
-        slot.firstChild.style.setProperty("--w",sr.width+"px");
-        slot.style.setProperty("--w",sr.width+"px");
+        slot.firstChild.style.setProperty("--w",slot.offsetWidth+"px");
+        slot.style.setProperty("--w",slot.offsetWidth+"px");
         fly.remove();
         nm.innerHTML=d.card.name+(d.rev?'<small>перевёрнутая</small>':'');
         nm.classList.add("on");
@@ -162,6 +199,20 @@ button.btn:hover{background:var(--gold);color:var(--bg2)}
   }
   if(PRESET.length){again.textContent="Узнать, что значат карты";again.addEventListener("click",function(){if(TG){try{TG.sendData("opened");}catch(e){TG.close();}}else build();});}
   else again.addEventListener("click",build);
+  if(!PRESET.length){
+    var sp=document.getElementById("spreads");sp.classList.remove("hidden");
+    Object.keys(SPREADS).forEach(function(k){
+      var b=document.createElement("button");b.type="button";b.textContent=SPREADS[k][0];b.dataset.k=k;
+      if(k===CUR)b.className="on";
+      b.addEventListener("click",function(){
+        if(busy)return;
+        CUR=k;POS=SPREADS[k][1].slice();N=POS.length;
+        Array.prototype.forEach.call(sp.children,function(x){x.className=x.dataset.k===k?"on":"";});
+        build();
+      });
+      sp.appendChild(b);
+    });
+  }
   build();
 })();
 </script>
